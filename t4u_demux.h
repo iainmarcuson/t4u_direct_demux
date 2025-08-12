@@ -16,8 +16,9 @@
 
 struct Client_Addr
 {
-    struct sockaddr t4u_addr; // T4U Address; only IP address in significant
-    struct sockaddr dest_addr; // Destination address
+    struct sockaddr_in t4u_addr; // T4U Address; only IP address in significant
+    struct sockaddr_in dest_addr; // Destination address
+    int socket;
 };
 
 #endif
