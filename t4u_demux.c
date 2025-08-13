@@ -112,6 +112,8 @@ int32_t parse_config_file(FILE *config_file, struct Client_Addr **client_list, u
     struct sockaddr_in src_sock_addr;
     struct sockaddr_in dest_sock_addr;
     uint32_t line_cnt = 0;
+    uint32_t client_cnt = 0;
+    struct Client_Addr *active_list;
     
     ret = ST_ERR_OK;
     *client_list = NULL;
@@ -124,9 +126,9 @@ int32_t parse_config_file(FILE *config_file, struct Client_Addr **client_list, u
     }
     line_len = BASE_LEN;
 
-    *client_list = malloc(sizeof(struct Client_Addr) * CLIENT_ADDR_BLOCKS);
+    active_list = malloc(sizeof(struct Client_Addr) * CLIENT_ADDR_BLOCKS);
     client_chunks_allocated++;
-    if (*client_list == NULL)
+    if (active_list == NULL)
     {
         goto cleanup;
     }
@@ -169,29 +171,37 @@ int32_t parse_config_file(FILE *config_file, struct Client_Addr **client_list, u
             printf("Error reading config line: \"%s\"\n", curr_line);
             goto cleanup;
         }
+
+        client_cnt++;
         
-        if (*num_clients >= (CLIENT_ADDR_BLOCKS-1))
+        if (client_cnt >= (CLIENT_ADDR_BLOCKS))
         {
             printf("Error: no more than %i clients.\n", CLIENT_ADDR_BLOCKS);
             goto cleanup;
         }
 
         src_sock_addr.sin_addr.s_addr = htonl((src_addr[0] << 24)+(src_addr[1] << 16) + (src_addr[2] << 8) + src_addr[3]);
+        printf("Client %2u: %hhu.%hhu.%hhu.%hhu %hu\n", client_cnt, src_addr[0], src_addr[1], src_addr[2], src_addr[3], dest_port);
         dest_sock_addr.sin_port = htons(dest_port);
+        dest_sock_addr.sin_addr.s_addr = htonl((127 << 24)+1);
 
-        client_list[*num_clients]->t4u_addr = *((struct sockaddr_in *)&src_sock_addr);
-        client_list[*num_clients]->dest_addr = *((struct sockaddr_in *)&dest_sock_addr);
+        active_list[client_cnt-1].t4u_addr = *((struct sockaddr_in *)&src_sock_addr);
+        active_list[client_cnt-1].dest_addr = *((struct sockaddr_in *)&dest_sock_addr);
 
-        *num_clients += 1;
+        //printf("Loaded Address: %x\n", ntohl(active_list[client_cnt-1].t4u_addr.sin_addr.s_addr));
+      
                 
     }
 
+    *client_list = active_list;
+    *num_clients = client_cnt;
+    
     return ret;
     
 cleanup:
     free(curr_line);
     curr_line = NULL;
-    free(*client_list);
+    free(active_list);
     *client_list = NULL;
     printf("Problem on line %u.\n", line_cnt);
     ret = ST_ERR_FAIL;
@@ -222,7 +232,7 @@ int32_t main_loop(struct Client_Addr *client_list, uint32_t num_clients, int lis
 
         //printf("Received a packet of length %llu.\n", (long long unsigned)dgram_size);
         //printf("Address is %x\n", ntohl(recv_addr.sin_addr.s_addr));
-        //printf("Dest address is %x\n", ntohl(client_list[0].t4u_addr.sin_addr.s_addr));
+        //printf("Dest address is %x\n", ntohl(client_list[1].t4u_addr.sin_addr.s_addr));
         
         // Search for the address among the clients
         for (uint32_t client_idx = 0; client_idx<num_clients; client_idx++)
